@@ -1,0 +1,440 @@
+---
+title: "StatComp Project 1: Simulation and sampling"
+author: "Michelle Cleary (s1979093, michellecleary)"
+output:
+  html_document:
+    number_sections: yes
+  pdf_document:
+    number_sections: yes
+header-includes:
+  - \newcommand{\bm}[1]{\boldsymbol{#1}}
+  - \newcommand{\mat}[1]{\begin{bmatrix}#1\end{bmatrix}}
+---
+
+```{r setup, include = FALSE}
+# Modify this setup code chunk to set options
+# or add extra packages etc if needed.
+# See the project instructions for more details
+# on what code to show, and where/how.
+
+# Set default code chunk options
+knitr::opts_chunk$set(
+  echo = TRUE,
+  eval = TRUE
+)
+
+suppressPackageStartupMessages(library(tidyverse))
+theme_set(theme_bw())
+suppressPackageStartupMessages(library(StatCompLab))
+suppressPackageStartupMessages(library(mvtnorm))
+suppressPackageStartupMessages(library(spatstat.geom))
+
+# To give the same random number sequence every time the document is knit:ed,
+# making it easier to discuss the specific numbers in the text:
+set.seed(12345L)
+```
+
+```{r code=readLines("code.R"), eval=TRUE, echo=FALSE}
+# Do not change this code chunk
+# Load function definitions
+source("code.R")
+```
+
+
+# Confidence interval approximation assessment
+
+We will compare the coverage of two confidence interval constructions for the expectation parameter $\lambda$ in a model for observations $y_i \sim \mathsf{Poisson}(\lambda)$, independent for $i = 1,...,n$. 
+
+## Confidence interval construction methods
+
+Let $a = z_{\alpha/2}$, $b = z_{1-\alpha/2}$. We parametrise $\theta = \lambda$, with $\hat{\theta}_{ML} = \frac{1}{n}\sum_{i=1}^{n}y_i=\bar{y}$. The confidence interval construction is motivated by the ratio $\frac{\hat{\lambda}-\lambda}{\sqrt{\lambda/n}}$. 
+For Method 1, we approximate this ratio by $\frac{\hat{\lambda}-\lambda}{\sqrt{\hat{\lambda}/n}}$. Method 1, defined in `approx_conf_int`, for constructing a confidence interval for $\lambda$ from observations $y_i \sim \mathsf{Poisson}(\lambda)$, independent for $i = 1,...,n$, using this approximated ratio is given by,
+
+$$
+\text{CI}_1 = \left(\text{max}\left\{0, \hat{\lambda} - b \sqrt{\hat{\lambda}/n}\right\}, \ \ \hat{\lambda} - a \sqrt{\hat{\lambda}/n} \right) 
+= \left(\text{max}\left\{0, \bar{y} - b \sqrt{\bar{y}/n}\right\}, \ \ \bar{y} - a \sqrt{\bar{y}/n} \right)
+$$
+
+In order to define Method 2 for constructing a confidence interval for $\lambda$ from observations $y_i \sim \mathsf{Poisson}(\lambda)$, independent for $i = 1,...,n$, using the non-approximated ratio, we must solve the inequalities,
+
+$$
+a < \frac{\hat{\lambda}-\lambda}{\sqrt{\lambda/n}} < b
+$$
+
+Substituting $x = \sqrt{\lambda}$, we find two separate quadratic equations,
+
+$$
+x^2 + \frac{a}{\sqrt{n}}x - \hat{\lambda} = 0, \ \ \ \ \ \ \ \  x^2 + \frac{b}{\sqrt{n}}x - \hat{\lambda} = 0.
+$$
+
+Solving these equations, we find,
+
+$$
+x = \frac{1}{2} \left(\frac{-a}{\sqrt{n}} \pm \sqrt{\frac{a^2}{n}+4\hat{\lambda}}\right), \ \ \ \ \ \ \ \ x = \frac{1}{2} \left(\frac{-b}{\sqrt{n}} \pm \sqrt{\frac{b^2}{n}+4\hat{\lambda}}\right).
+$$
+
+Squaring the results to undo the subtstition $x=\sqrt{\lambda}$,
+
+$$
+\lambda = \frac{1}{4} \left(\frac{2a^2}{n}+4\hat{\lambda} \pm \frac{2a}{\sqrt{n}}\sqrt{\frac{a^2}{n}+4\hat{\lambda}}\right), \ \ \ \ \ \ \ \  \lambda = \frac{1}{4} \left(\frac{2b^2}{n}+4\hat{\lambda} \pm \frac{2b}{\sqrt{n}}\sqrt{\frac{b^2}{n}+4\hat{\lambda}}\right)
+$$
+
+Simplifying, we find,
+
+$$
+\lambda = \frac{1}{2} \left(\frac{a^2}{n}+2\hat{\lambda} \pm \frac{a}{n}\sqrt{a^2+4n\hat{\lambda}}\right), \ \ \ \ \ \ \ \  \lambda = \frac{1}{2} \left(\frac{b^2}{n}+2\hat{\lambda} \pm \frac{b}{n}\sqrt{b^2+4n\hat{\lambda}}\right)
+$$
+
+Noting that, since $z_{\alpha/2}=-z_{1-\alpha/2}$, then $a=-b$, and so $a^2=b^2$. For $\alpha<0.5$, we have $a<0$, $b>0$. Therefore, Method 2, defined in `conf_int`, for constructing a confidence interval for $\lambda$ using the non-approximated ratio is given by
+
+$$
+\text{CI}_2 = \left(\text{max}\left\{0, \frac{1}{2} \left(\frac{a^2}{n}+2\hat{\lambda} + \frac{a}{n}\sqrt{a^2+4n\hat{\lambda}}\right)\right\}, \ \ \frac{1}{2} \left(\frac{b^2}{n}+2\hat{\lambda} + \frac{b}{n}\sqrt{b^2+4n\hat{\lambda}}\right) \right) 
+$$
+
+## Confidence interval coverage assessment
+
+We use the `estimate_coverage` function, defined in `code.R`, to estimate the coverage probability of both confidence interval construction methods from samples $\mathsf{Poisson}(\lambda)$. 
+First, we look at the case where $n = 2$, $\lambda = 3$. We let $\alpha = 0.1$.
+
+```{r interval-comparison-small-n, echo=TRUE}
+# Estimate coverage using both the approximated and non-approximated ratios
+interval_comparison <- data.frame(estimate_coverage(approx_conf_int,
+  conf_int,
+  alpha = 0.1,
+  n = 2,
+  lambda = 3
+))
+```
+```{r interval-comparison-small-n-table, echo=FALSE}
+# Display the results
+colnames(interval_comparison) <- "Coverage Probability"
+rownames(interval_comparison) <- c("Approximated", "Non-approximated")
+knitr::kable(interval_comparison)
+```
+
+We observe that the approximated confidence interval construction, Method 1, has coverage probability $82.79\%$, while the non-approximated version, Method 2, has coverage probability $93.90\%$. Method 1 results in a confidence interval with $7.21\%$ less coverage than the nominal coverage of $90\%$. Method 1 results in a confidence interval with $3.90\%$ more coverage than the nominal coverage. Therefore, for small values of $n$, it appears that Method 2 performs better than Method 1, as it is closest to the nominal coverage of $90\%$. 
+
+Now, we look at the case where $n = 1000, \lambda = 3$.
+
+```{r interval-comparison-large-n, echo=TRUE}
+# Estimate coverage using both the approximated and non-approximated ratios
+interval_comparison <- data.frame(estimate_coverage(approx_conf_int,
+  conf_int,
+  alpha = 0.1,
+  n = 1000,
+  lambda = 3
+))
+```
+```{r interval-comparison-large-n-table, echo=FALSE}
+# Display the results
+colnames(interval_comparison) <- "Coverage Probability"
+rownames(interval_comparison) <- c("Approximated", "Non-approximated")
+knitr::kable(interval_comparison)
+```
+
+For the larger value of $n=1000$, both Method 1 and Method 2 have approximately equivalent coverage probability, $89.96\%$ and $90.20\%$ respectively. These values are $\approx 90\%$, the nominal coverage, suggesting that both methods perform well for larger values of $n$.
+We investigate this further by estimating the coverage probability of each method for increasing values of $n$, $n \in [0, 2000]$. The results are plotted below.
+
+
+```{r plot-intervals, echo = FALSE, fig.width = 8}
+# Create a sequence n, from 0 to 2000 with an increment of 20
+n <- seq(0, 2000, 20)
+# Create an empty data frame to store the results
+interval_comparison <- data.frame(matrix(
+  nrow = length(n),
+  ncol = 3
+))
+colnames(interval_comparison) <- c("n", "Approximated", "Non-approximated")
+interval_comparison[, 1] <- n
+
+# Iterate over each value of n
+for (i in seq_along(n)) {
+  # Estimate the coverage of each method
+  coverages <- estimate_coverage(approx_conf_int,
+    conf_int,
+    alpha = 0.1,
+    n = i,
+    lambda = 3
+  )
+  # Store the results in the data frame
+  interval_comparison[i, 2:3] <- coverages
+}
+
+# Plot the results
+ggplot(interval_comparison) +
+  # Plot the approximated coverage
+  geom_line(aes(
+    x = n, y = `Approximated`,
+    colour = "Method 1 (approximated ratio)"
+  )) +
+  # Plot the non-approximated coverage
+  geom_line(aes(
+    x = n,
+    y = `Non-approximated`,
+    colour = "Method 2 (non-approximated ratio)"
+  )) +
+  # Label the axes
+  xlab("Sample size") +
+  ylab("Coverage probability") +
+  # Title the plot
+  ggtitle("Coverage probability of confidence interval construction methods vs sample size")
+```
+
+The plot suggests that, for smaller values of $n$, Method 2 has a much higher coverage probability than Method 1. However, as the value of $n$ increases, the difference between these probabilities decreases. Each method performs slightly better than the other for varying large values of $n$. For larger values of $n$, both methods have approximately the same coverage probability. 
+
+```{r new-seed, echo = FALSE}
+# Set a new seed for part 2
+set.seed(134)
+```
+# 3D printer materials prediction
+
+We will estimate the parameters of a Bayesian statistical model of material use in a 3D printer. A CAD (Computer-Aided Design) program is used to estimate how much material will be needed to print the object, i.e. the estimated weight of the object. A plot of the actual weight of objects of different materials, `Actual_Weight`, against their weights estimated by CAD, `CAD_Weight`, is given below. 
+
+
+```{r plot-filament1-data, echo = FALSE, fig.width = 8}
+# Load the data
+data("filament1", package = "StatCompLab")
+# Plot the CAD weight data against the actual weight data, differentiating by material
+ggplot(filament1, aes(CAD_Weight, Actual_Weight, colour = Material)) +
+  # Create a scatterplot
+  geom_point() +
+  # Label the axes
+  xlab("CAD weight (grams)") +
+  ylab("Actual weight (grams)") +
+  scale_colour_manual(values = c(
+    "black", "green", "purple",
+    "blue", "magenta", "red"
+  )) +
+  # Title the plot
+  ggtitle("Actual weight vs CAD weight of objects of different materials")
+```
+
+There is both random variation and systematic deviations between the `CAD_weight` and `Actual_Weight` values. We observe that the variability of the data is larger for larger values of `CAD_Weight`. This illustrates a model where the connection between `CAD_Weight` and `Actual_Weight` follows a linear model, and the variance increases with the square of `CAD_Weight`.
+Let $x_i$ be the CAD weight for observation $i$, and $y_i$ be the corresponding actual weight. Therefore, the model can be defined by
+
+$$
+y_i \sim \mathsf{Normal}(\beta_1+\beta_2x_i, \beta_3+\beta_4x_i^2).
+$$
+
+Define the parametrisation $\boldsymbol{\theta} = [\theta_1, \theta_2, \theta_3, \theta_4] = [\beta_1, \beta_2, \log(\beta_3), \log(\beta_4)]$. The independent prior distributions are given by
+
+$$
+\theta_1 \sim \mathsf{Normal}(0, \gamma_1), \\
+\theta_2 \sim \mathsf{Normal}(2, \gamma_2), \\
+\theta_3 \sim \mathsf{LogExp}(\gamma_3), \\
+\theta_4 \sim \mathsf{LogExp}(\gamma_4),
+$$
+
+where $\boldsymbol{\gamma} = [\gamma_1, \gamma_2, \gamma_3, \gamma_4]$ are positive parameter values. 
+
+## Prior density
+
+Since the prior distributions for the four $\theta_i$ parameters are independent, the joint prior density, $p(\boldsymbol{\theta})$, is the product of the four univariate densities. `log_prior_density` defines a function which evaluates the logarithm of the joint prior density 
+
+$$
+\log\left(p(\boldsymbol{\theta})\right) = \log\left(\prod_{i=1}^4p(\theta_i)\right)
+$$
+
+## Observation likelihood
+
+The observation likelihood, $p(\boldsymbol{y}|\boldsymbol{\theta})$, for the model defined above is defined as
+
+$$
+\begin{aligned}
+p(\boldsymbol{y}|\boldsymbol{\theta}) &= \prod_{i=1}^nf(y_i|\boldsymbol{\theta}) \\
+&= \prod_{i=1}^n \frac{1}{\sqrt{2\pi(\exp(\theta_3)+\exp(\theta_4)x_i^2)}}\ \exp\left(-\frac{(y_i-(\theta_1+\theta_2x_i))}{2(\exp(\theta_3)+\exp(\theta_4)x_i^2)} \right)
+\end{aligned}
+$$
+
+Therefore, `log_like` defines the observation log-likelihood function as follows
+
+$$
+\log(p(\boldsymbol{y}|\boldsymbol{\theta})) = \sum_{i=1}^{n}\log\left(\frac{1}{\sqrt{2\pi(\exp(\theta_3)+\exp(\theta_4)x_i^2)}}\ \exp\left(-\frac{(y_i-(\theta_1+\theta_2x_i))}{2(\exp(\theta_3)+\exp(\theta_4)x_i^2)} \right) \right)
+$$
+
+## Posterior density
+Applying Bayes' Formula, the posterior density is given by
+$$
+p(\boldsymbol{\theta}|\boldsymbol{y}) = \frac{p(\boldsymbol{\theta})p(\boldsymbol{y}|\boldsymbol{\theta})}{p(\boldsymbol{y})} \propto p(\boldsymbol{\theta})p(\boldsymbol{y}|\boldsymbol{\theta}).
+$$
+
+as $p(\boldsymbol{y})$ is a constant with respect to $\boldsymbol{\theta}$.
+
+Therefore, the logarithm of the posterior density, as defined in `log_posterior_density`, is given by
+
+$$
+\begin{aligned}
+\log(p(\boldsymbol{\theta}|\boldsymbol{y})) &\propto \log\left(p(\boldsymbol{\theta})p(\boldsymbol{y}|\boldsymbol{\theta})\right) \\
+&= \log(p(\boldsymbol{\theta})) + \log(p(\boldsymbol{y}|\boldsymbol{\theta})),
+\end{aligned}
+$$
+
+up to some unevaluated normalisation constant.
+
+## Posterior mode and Gaussian approximation
+
+We will use the function `log_posterior_density`, defined in `code.R`, to evaluate the posterior mode, $\boldsymbol{\mu}$, for $\boldsymbol{\theta}$. We will also evaluate the inverse of the negated Hessian at the mode, $\mathbf{S}$.
+
+Let $\gamma_i = 1$ for $i = 1, 2, 3, 4$. Let the initial values for $\boldsymbol{\theta}$ be $\boldsymbol{\theta}_0 = [0, 1, 0, 0]$. We use `optim()` to evaluate $\boldsymbol{\mu}$ and $\mathbf{S}$, using maximisation rather than minimisation.
+
+```{r optimisation, echo = TRUE}
+# Initialise gamma values
+gamma <- c(1, 1, 1, 1)
+# Initialise theta values
+initial_theta_vals <- c(0, 1, 0, 0)
+# Maximise log_posterior_density, optimising over theta
+optimise_theta <- optim(
+  par = initial_theta_vals,
+  fn = log_posterior_density,
+  # Arguments for function "fn"
+  x = filament1$CAD_Weight,
+  y = filament1$Actual_Weight,
+  params = gamma,
+  # Method of optimisation
+  method = "Nelder-Mead",
+  # Maximisation, not minimisation
+  control = list(fnscale = -1),
+  # Evaluate the Hessian
+  hessian = TRUE
+)
+# Evaluate the posterior mode
+posterior_mode <- optimise_theta$par
+# Evalaute the inverse of the negated Hessian
+inv_negated_hessian <- solve(-optimise_theta$hessian)
+```
+```{r results, eval = FALSE, echo=FALSE}
+# Display the results
+posterior_mode
+inv_negated_hessian
+```
+
+These results show that the posterior mode for $\boldsymbol{\theta}$ is given by 
+$$
+\boldsymbol{\mu} = [-0.1008582,  1.0800126, -2.9827638, -6.7584386] \approx [-0.10, 1.08, -2.98, -6.76].
+$$
+The covariance matrix for $\boldsymbol{\theta}$ at $\boldsymbol{\mu}$ is defined by the inverse of the negated Hessian at the posterior mode, $\boldsymbol{\mu}$, given by
+
+$$
+\boldsymbol{S} = \begin{bmatrix}
+0.0082932 &	-0.0003430 &	0.0302232 &	-0.0042826 \\
+-0.0003430 &	0.0000299 &	-0.0014917 &	0.0002112 \\
+0.0302232	& -0.0014917 &	1.0651007 &	-0.1238291 \\
+-0.0042826 &	0.0002112 &	-0.1238291 &	0.0454224
+\end{bmatrix}
+$$
+
+Therefore, $\tilde{p}(\boldsymbol{\theta}|\boldsymbol{y}) \sim \boldsymbol{\text{Normal}(\mu, S)}$ is a multivariate Normal approximation to the posterior distribution for $\boldsymbol{\theta}$.
+
+
+## Importance sampling function
+
+We define the function `do_importance` to simulate an importance sample for $\boldsymbol{\beta} = [\beta_1, \beta_2, \beta_3, \beta_4]$. We simulate a sample $\mathbf{A} = \left[\mathbf{a}_1, \mathbf{a}_2,....,\mathbf{a}_N\right]$ of size $N$ from the multivariate Normal approximation of the posterior distribution. We then compute *importance weights*, $w_k, \ k=1,....,N$,
+
+$$
+w_k =\left. \frac{p(\boldsymbol{\theta})p(\boldsymbol{y}|\boldsymbol{\theta})}{\tilde{p}(\boldsymbol{\theta}|\boldsymbol{y})}\right|_{\boldsymbol{\theta} = \boldsymbol{a}_k}
+$$
+
+We then compute the logarithm of these weights, $\log(w_k)$. We use the `log_sum_exp` function to calculate a normalisation constant, $c = \log\left(\sum_{i=1}^{N}\exp(\log(w_k)\right)$. We compute normalised log importance weights, $\log(\tilde{w}_k) = \log(w_k) - c$, such that $\sum_{i=1}^{N}\exp\left(\log\left(\tilde{w}_k\right)\right)=1$. Finally, since $\boldsymbol{\theta} = [\theta_1, \theta_2, \theta_3, \theta_4] = [\beta_1, \beta_2, \log(\beta_3), \log(\beta_4)]$, we transform the sample values for $\boldsymbol{\theta}$ back to the parameter scale of $\boldsymbol{\beta}$ by taking the exponential of each sample value for $\theta_3$ and $\theta_4$.
+
+## Importance sampling
+
+We compute an importance sample of size $N=10000$ using the `do_importance` function. 
+
+```{r importance-sampling, echo=TRUE}
+# Compute importance sample
+importance_sample <- do_importance(10000,
+  mu = posterior_mode, S = inv_negated_hessian, x = filament1$CAD_Weight, y = filament1$Actual_Weight,
+  params = gamma
+)
+```
+
+Now, we will compare the empirical weighted and un-weighted cumulative distribution functions (CDFs) for each $\boldsymbol{\beta}$ parameter. We plot these CDFs, along with the CDFs of the theoretical Gaussian approximation of the posterior distribution, $\tilde{p}(\boldsymbol{\theta}|\boldsymbol{y}) \sim \boldsymbol{\text{Normal}(\mu, S)}$.
+
+```{r plot-cdfs, echo = FALSE, fig.width = 10, fig.height = 8}
+# Pivot the beta parameter columns
+pivoted_sample <- pivot_longer(importance_sample, starts_with("beta"))
+# Plot the empiricial weighted and unweighted CDFs
+ggplot(data = pivoted_sample) +
+  # Create a separate plot for each beta parameter
+  facet_wrap(~name, scales = "free") +
+  # Plot the weighted CDF for each beta parameter
+  stat_ewcdf(aes(value,
+    weights = log_weights,
+    col = "Importance"
+  )) +
+  # Plot the unweighted CDF for each beta parameter
+  stat_ecdf(aes(value, col = "Unweighted")) +
+  # Label the axes
+  xlab(expression(beta)) +
+  ylab("CDF") +
+  # Title the plot
+  ggtitle("Empricial weighted, unweighted, and theoretical CDFs for each beta parameter")
+```
+
+For each $\boldsymbol{\beta}$ parameter, the importance sample and unweighted sample are extremely close. This suggests that, for this model, the Gaussian approximation of the posterior distribution of $\boldsymbol{\theta}=[\beta_1, \beta_2, \log(\beta_3), \log(\beta_4)]$, $\tilde{p}(\boldsymbol{\theta}|\boldsymbol{y}) \sim \boldsymbol{\text{Normal}(\mu, S)}$, is a very good approximation, even before applying importance sampling.
+
+We construct $90\%$ credible intervals for each of the $\boldsymbol{\beta}$ parameters, based on the importance sample.
+
+```{r credible-intervals, echo = TRUE}
+# Create an empty data frame to store results
+beta_intervals <- data.frame(matrix(nrow = 4, ncol = 2))
+rownames(beta_intervals) <- c(
+  "beta1", "beta2", "beta3",
+  "beta4"
+)
+colnames(beta_intervals) <- c("Lower", "Upper")
+# Iterate over each beta parameter
+for (i in seq_len(4)) {
+  # Construct a 90% credible interval for beta_i
+  CI <- make_CI(importance_sample[, i],
+    prob = 0.9,
+    weights = exp(importance_sample$log_weights)
+  )
+  # Store the results in the dataframe
+  beta_intervals[i, ] <- CI[, ]
+}
+```
+```{r credible-intervals-result, echo = FALSE}
+knitr::kable(beta_intervals)
+```
+
+
+
+The 3D printer application models the actual weight of an object, $y_i$, as
+$$
+y_i \sim \mathsf{Normal}(\beta_1+\beta_2x_i, \beta_3+\beta_4x_i^2).
+$$
+
+It assumes that the error in the CAD software calculation of the weight is proportional to the weight itself. The credible intervals above support this assumption. The credible intervals for $\beta_1$ and $\beta_2$ suggest that the mean, $\beta_1 + \beta_2x_i$, is approximately equivalent to the value of $x_i$, with some slight deviation. This deviation increases as the value of $x_i$ increases, i.e. as the CAD software-calculated weight increases. The credible intervals for $\beta_3$ and $\beta_4$ suggest that the variance increases very slightly as the value of $x_i$ increases, i.e. as the CAD software-calculated weight increases, the variance increases very slightly with the square of this weight. This implies that the error is indeed proportional to the actual weight of an object. 
+
+We plot the importance log-weights to see how they depend on the sampled $\boldsymbol{\beta}$-values. 
+
+```{r plot-weights-against-beta, echo = FALSE, fig.width = 8}
+# Plot the empiricial weighted and unweighted CDFs
+# Pivot the beta parameter columns
+ggplot(data = pivot_longer(
+  importance_sample,
+  starts_with("beta")
+)) +
+  # Create a separate plot for each beta parameter
+  facet_wrap(~name, scales = "free") +
+  geom_point(aes(x = value, y = log_weights, alpha = 0.05)) +
+  # Label the axes
+  xlab(expression(beta)) +
+  ylab("Log-importance-weights") +
+  # Title the plot
+  ggtitle("Log importance weights vs value of each beta parameter")
+```
+
+Each of the plots above are quite similar, suggesting that the importance log-weights have the same dependency on each of the $\beta$ parameters. The majority of points in the plots are clustered within the values of the credible intervals for each $\boldsymbol{\beta}$ parameter, with a small number of outliers.
+
+The log-weights are smallest when $\beta_i$ is close to its mean value, $\mu_i$. As the value of $\beta_i$ deviates farther away from its mean, the value of the corresponding log-weight increases. From the sampling method point of view, this is to be expected. The majority of the sampled $\boldsymbol{\beta}$ values would be close to the mean. They would be within their respective credible intervals with probability $90\%$. Therefore, we would expect the outlier $\boldsymbol{\beta}$ values that deviate from these intervals to have a higher weight, as they are far less common.
+
+In conclusion, the importance sampling method is an extremely accurate approximation of the true posterior distribution for this model. Both the unweighted sample and the Gaussian approximation are also very close to the true posterior distribution, and so are excellent approximations. Overall, each of these approximations is a good estimate of the $\boldsymbol{\beta}$ parameters, with the importance sampling method being the most accurate.
+
+
+# Code appendix
+
+```{r code=readLines("code.R"), eval=FALSE, echo=TRUE}
+# Do not change this code chunk
+```
